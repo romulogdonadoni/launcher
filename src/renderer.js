@@ -53,6 +53,8 @@ async function checkGameStatus() {
 
 // Função para atualizar a interface baseada no status
 function updateUI(status) {
+  console.log('Atualizando UI com status:', status);
+  
   if (status.isInstalled && status.isUpdated) {
     if (status.isProcessRunning) {
       // Jogo instalado, atualizado e rodando - Mostra botão de parar
@@ -61,7 +63,7 @@ function updateUI(status) {
         updateButton.disabled = false;
         updateButton.style.background = 'linear-gradient(45deg, #dc3545, #c82333)';
       }
-      statusText.textContent = `🎮 Jogo rodando (v${status.currentVersion}) - Clique em "Parar" para encerrar`;
+      statusText.textContent = `🎮 Jogo rodando (Release #${status.currentVersion}) - Clique em "Parar" para encerrar`;
       statusText.style.backgroundColor = '#d1ecf1';
       statusText.style.color = '#0c5460';
       statusText.style.border = '1px solid #bee5eb';
@@ -72,7 +74,7 @@ function updateUI(status) {
         updateButton.disabled = false;
         updateButton.style.background = 'linear-gradient(45deg, #28a745, #20c997)';
       }
-      statusText.textContent = `✅ Jogo instalado e atualizado (v${status.currentVersion}) - Clique em "Jogar" para iniciar`;
+      statusText.textContent = `✅ Jogo instalado e atualizado (Release #${status.currentVersion}) - Clique em "Jogar" para iniciar`;
       statusText.style.backgroundColor = '#d4edda';
       statusText.style.color = '#155724';
       statusText.style.border = '1px solid #c3e6cb';
@@ -84,7 +86,28 @@ function updateUI(status) {
       updateButton.disabled = false;
       updateButton.style.background = 'linear-gradient(45deg, #ffc107, #fd7e14)';
     }
-    statusText.textContent = `⚠️ Jogo instalado mas desatualizado (v${status.currentVersion})`;
+    
+    if (status.latestVersion) {
+      statusText.textContent = `⚠️ Atualização disponível! Release atual: #${status.currentVersion} → Nova release: #${status.latestVersion}`;
+    } else {
+      statusText.textContent = `⚠️ Jogo instalado mas desatualizado (Release #${status.currentVersion})`;
+    }
+    statusText.style.backgroundColor = '#fff3cd';
+    statusText.style.color = '#856404';
+    statusText.style.border = '1px solid #ffeaa7';
+  } else if (status.needsUpdate && status.updateAvailable) {
+    // Jogo precisa de atualização e há uma disponível
+    if (updateButton) {
+      updateButton.textContent = '🔄 Atualizar Jogo';
+      updateButton.disabled = false;
+      updateButton.style.background = 'linear-gradient(45deg, #ffc107, #fd7e14)';
+    }
+    
+    if (status.latestVersion) {
+      statusText.textContent = `🆕 Nova release disponível: #${status.latestVersion}! Clique em "Atualizar" para baixar.`;
+    } else {
+      statusText.textContent = '🔄 Atualização disponível! Clique em "Atualizar" para baixar.';
+    }
     statusText.style.backgroundColor = '#fff3cd';
     statusText.style.color = '#856404';
     statusText.style.border = '1px solid #ffeaa7';
@@ -95,7 +118,12 @@ function updateUI(status) {
       updateButton.disabled = false;
       updateButton.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
     }
-    statusText.textContent = '❌ Jogo não instalado';
+    
+    if (status.latestVersion) {
+      statusText.textContent = `⬇️ Jogo não instalado. Release disponível: #${status.latestVersion}`;
+    } else {
+      statusText.textContent = '❌ Jogo não instalado';
+    }
     statusText.style.backgroundColor = '#f8d7da';
     statusText.style.color = '#721c24';
     statusText.style.border = '1px solid #f5c6cb';

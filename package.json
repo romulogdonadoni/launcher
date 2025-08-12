@@ -13,7 +13,7 @@
     "dist-win-portable": "electron-builder --win portable"
   },
   "build": {
-    "appId": "com.seujogo.launcher",
+    "appId": "com.seujogo.game",
     "productName": "Game Launcher",
     "directories": {
       "output": "dist-build"

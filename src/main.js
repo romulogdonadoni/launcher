@@ -191,8 +191,8 @@ ipcMain.handle('download-game', async (event, downloadUrl) => {
 
     response.data.pipe(writer);
 
-    return new Promise((resolve, reject) => {
-      writer.on('finish', () => {
+        return new Promise((resolve, reject) => {
+      writer.on('finish', async () => {
         console.log('Download concluído, verificando arquivo...');
         
         // Verifica se o arquivo foi baixado corretamente
@@ -225,6 +225,27 @@ ipcMain.handle('download-game', async (event, downloadUrl) => {
           // Lista os arquivos extraídos
           const extractedFiles = fs.readdirSync(gameDir);
           console.log('Arquivos extraídos:', extractedFiles);
+          
+          // Salva a versão instalada no cache
+          try {
+            // Obtém a versão mais recente para salvar
+            const releases = await axios.get(
+              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`
+            );
+            const latestReleaseId = releases.data.id;
+            const asset = releases.data.assets.find((a) => a.name.endsWith('.zip'));
+            
+            if (asset) {
+              saveInstalledRelease(latestReleaseId, {
+                name: asset.name,
+                size: asset.size,
+                downloadUrl: asset.browser_download_url
+              });
+              console.log('Release instalada salva no cache:', latestReleaseId);
+            }
+          } catch (versionError) {
+            console.error('Erro ao salvar release no cache:', versionError);
+          }
           
           resolve();
         } catch (extractError) {
@@ -375,18 +396,22 @@ ipcMain.handle('check-game-status', async () => {
     
     const isInstalled = true;
     
-    // Verifica a versão mais recente no GitHub
-    try {
-      console.log('Verificando versão mais recente no GitHub...');
+    // Obtém a versão instalada do cache
+    const installedReleaseId = getInstalledReleaseId();
+    console.log('Release instalada (cache):', installedReleaseId);
+    
+         // Verifica a release mais recente no GitHub
+     try {
+       console.log('Verificando release mais recente no GitHub...');
       const releases = await axios.get(
         `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest`
       );
       
       const releaseData = releases.data;
-      const latestVersion = releaseData.tag_name;
+      const latestReleaseId = releaseData.id;
       const asset = releaseData.assets.find((a) => a.name.endsWith('.zip'));
       
-      console.log('Versão mais recente:', latestVersion);
+             console.log('Release mais recente:', latestReleaseId);
       console.log('Asset encontrado:', asset ? asset.name : 'nenhum');
       
       if (asset) {
@@ -394,19 +419,40 @@ ipcMain.handle('check-game-status', async () => {
         console.log('Tamanho do asset:', asset.size, 'bytes');
       }
       
-      // Por enquanto, vamos considerar que se existe, está atualizado
-      // Você pode implementar uma verificação mais sofisticada de versão aqui
-      return {
-        isInstalled: true,
-        isUpdated: true,
-        currentVersion: latestVersion,
-        latestVersion: latestVersion,
-        downloadUrl: asset?.browser_download_url || null
-      };
-    } catch (error) {
-      console.error('Erro ao verificar versão:', error);
-      return { isInstalled: true, isUpdated: false, currentVersion: 'desconhecida' };
-    }
+             // Compara os IDs das releases
+       let isUpdated = false;
+       let currentVersion = installedReleaseId || 'desconhecida';
+       
+       if (installedReleaseId) {
+         const comparison = compareReleaseIds(installedReleaseId, latestReleaseId);
+         isUpdated = comparison >= 0; // 0 = igual, 1 = mais nova, -1 = mais antiga
+         
+         console.log(`Comparação de releases: ${installedReleaseId} vs ${latestReleaseId} = ${comparison}`);
+         console.log(`Jogo está atualizado: ${isUpdated}`);
+       } else {
+         // Se não há release no cache, considera como não atualizado
+         isUpdated = false;
+         console.log('Nenhuma release no cache, considerando como não atualizado');
+       }
+       
+       return {
+         isInstalled: true,
+         isUpdated: isUpdated,
+         currentVersion: currentVersion,
+         latestVersion: latestReleaseId,
+         downloadUrl: asset?.browser_download_url || null,
+         needsUpdate: !isUpdated,
+         updateAvailable: !isUpdated && asset
+       };
+         } catch (error) {
+       console.error('Erro ao verificar release:', error);
+       return { 
+         isInstalled: true, 
+         isUpdated: false, 
+         currentVersion: installedReleaseId || 'desconhecida',
+         needsUpdate: true
+       };
+     }
     
   } catch (error) {
     console.error('Erro ao verificar status do jogo:', error);
@@ -622,3 +668,58 @@ ipcMain.handle('quit-app', () => {
   app.isQuiting = true;
   app.quit();
 });
+
+
+
+// Função para comparar IDs de release (quanto maior o ID, mais recente)
+function compareReleaseIds(id1, id2) {
+  if (!id1 || !id2) return 0;
+  
+  // Converte para números para comparação
+  const num1 = parseInt(id1);
+  const num2 = parseInt(id2);
+  
+  if (isNaN(num1) || isNaN(num2)) return 0;
+  
+  if (num1 > num2) return 1;  // id1 é mais recente
+  if (num1 < num2) return -1; // id1 é mais antigo
+  return 0; // são iguais
+}
+
+// Função para obter a versão instalada do cache
+function getInstalledReleaseId() {
+  try {
+    const userDataPath = app.getPath('userData');
+    const versionFile = path.join(userDataPath, 'installed-release.json');
+    
+    if (fs.existsSync(versionFile)) {
+      const releaseData = JSON.parse(fs.readFileSync(versionFile, 'utf8'));
+      return releaseData.releaseId;
+    }
+  } catch (error) {
+    console.error('Erro ao ler release instalada:', error);
+  }
+  
+  return null;
+}
+
+// Função para salvar a release instalada no cache
+function saveInstalledRelease(releaseId, assetInfo = null) {
+  try {
+    const userDataPath = app.getPath('userData');
+    const releaseFile = path.join(userDataPath, 'installed-release.json');
+    
+    const releaseData = {
+      releaseId: releaseId,
+      installedAt: new Date().toISOString(),
+      assetInfo: assetInfo
+    };
+    
+    fs.writeFileSync(releaseFile, JSON.stringify(releaseData, null, 2));
+    console.log('Release instalada salva no cache:', releaseId);
+  } catch (error) {
+    console.error('Erro ao salvar release instalada:', error);
+  }
+}
+
+
