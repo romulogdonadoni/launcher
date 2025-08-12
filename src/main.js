@@ -1,7 +1,7 @@
 const AdmZip = require('adm-zip');
 const axios = require('axios');
 const { exec } = require('child_process');
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
@@ -12,8 +12,13 @@ const REPO_NAME = 'game';              // Seu repositório real
 
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1920,
-    height: 1080,
+    width: 1024,
+    height: 768,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    frame: false, // Remove a barra de ferramentas padrão do Windows
+    titleBarStyle: 'hidden',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
@@ -21,10 +26,62 @@ function createWindow() {
     }
   });
   
-  // Abre DevTools para debug
-  win.webContents.openDevTools();
+  // Remove a linha que abre DevTools para debug
   
   win.loadFile(path.join(__dirname, 'index.html'));
+  
+  // Previne o fechamento da janela e minimiza para bandeja
+  win.on('close', (event) => {
+    if (!app.isQuiting) {
+      event.preventDefault();
+      win.hide();
+    }
+  });
+  
+  // Cria o ícone da bandeja
+  const tray = new Tray(path.join(__dirname, 'icon.png'));
+  tray.setToolTip('Game Launcher');
+  
+  // Menu da bandeja
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Mostrar Launcher',
+      click: () => {
+        win.show();
+        win.focus();
+      }
+    },
+    {
+      label: 'Sobre',
+      click: () => {
+        dialog.showMessageBox(win, {
+          type: 'info',
+          title: 'Sobre',
+          message: 'Game Launcher v1.0.0',
+          detail: 'Um launcher personalizado para seus jogos favoritos.'
+        });
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Sair',
+      click: () => {
+        app.isQuiting = true;
+        app.quit();
+      }
+    }
+  ]);
+  
+  tray.setContextMenu(contextMenu);
+  
+  // Duplo clique no ícone da bandeja mostra a janela
+  tray.on('double-click', () => {
+    win.show();
+    win.focus();
+  });
+  
+  // Salva a referência da bandeja para uso posterior
+  app.tray = tray;
 }
 
 app.whenReady().then(() => {
@@ -537,4 +594,31 @@ ipcMain.handle('stop-game-process', async () => {
     console.error('Erro ao parar processo do jogo:', error);
     throw error;
   }
+});
+
+// Handlers para controle da janela customizada
+ipcMain.handle('minimize-window', () => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) win.minimize();
+});
+
+ipcMain.handle('maximize-window', () => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) {
+    if (win.isMaximized()) {
+      win.unmaximize();
+    } else {
+      win.maximize();
+    }
+  }
+});
+
+ipcMain.handle('close-window', () => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (win) win.hide(); // Esconde ao invés de fechar
+});
+
+ipcMain.handle('quit-app', () => {
+  app.isQuiting = true;
+  app.quit();
 });

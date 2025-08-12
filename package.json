@@ -1,26 +1,69 @@
 {
   "name": "launcher",
   "version": "1.0.0",
-  "description": "",
+  "description": "Game Launcher personalizado",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron ."
+    "build": "copy src\\index.html dist\\index.html",
+    "dev": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder --win nsis",
+    "dist-win": "electron-builder --win nsis",
+    "dist-win-portable": "electron-builder --win portable"
   },
   "build": {
     "appId": "com.seujogo.launcher",
+    "productName": "Game Launcher",
+    "directories": {
+      "output": "dist-build"
+    },
+    "files": [
+      "src/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "src/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Game Launcher",
+      "installerIcon": "src/icon.ico",
+      "uninstallerIcon": "src/icon.ico",
+      "installerHeaderIcon": "src/icon.ico"
+    },
     "publish": [
-      "github"
+      {
+        "provider": "github",
+        "owner": "romulogdonadoni",
+        "repo": "launcher"
+      }
     ]
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "game",
+    "launcher",
+    "electron",
+    "desktop"
+  ],
+  "author": "Romulo",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
     "adm-zip": "^0.5.16",
     "axios": "^1.11.0",
-    "electron": "^37.2.6",
     "electron-updater": "^6.6.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "electron": "^37.2.6",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11"
   }
 }

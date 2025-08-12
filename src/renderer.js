@@ -1,6 +1,9 @@
 // Elementos da interface
 const updateButton = document.getElementById('update');
 const testConnectionButton = document.getElementById('test-connection');
+const minimizeBtn = document.getElementById('minimize-btn');
+const maximizeBtn = document.getElementById('maximize-btn');
+const closeBtn = document.getElementById('close-btn');
 const statusText = document.createElement('div');
 statusText.id = 'status';
 statusText.style.marginTop = '20px';
@@ -10,6 +13,19 @@ statusText.style.textAlign = 'center';
 
 // Adiciona o status ao DOM
 document.body.appendChild(statusText);
+
+// Event listeners para os botões da barra de título
+minimizeBtn?.addEventListener('click', () => {
+  window.electronAPI.minimizeWindow();
+});
+
+maximizeBtn?.addEventListener('click', () => {
+  window.electronAPI.maximizeWindow();
+});
+
+closeBtn?.addEventListener('click', () => {
+  window.electronAPI.closeWindow();
+});
 
 // Função para verificar o status do jogo
 async function checkGameStatus() {

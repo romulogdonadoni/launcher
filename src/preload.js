@@ -7,5 +7,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkGameStatus: () => ipcRenderer.invoke('check-game-status'),
     testGitHubConnection: () => ipcRenderer.invoke('test-github-connection'),
     checkGameProcess: () => ipcRenderer.invoke('check-game-process'),
-    stopGameProcess: () => ipcRenderer.invoke('stop-game-process')
+    stopGameProcess: () => ipcRenderer.invoke('stop-game-process'),
+    minimizeWindow: () => ipcRenderer.invoke('minimize-window'),
+    maximizeWindow: () => ipcRenderer.invoke('maximize-window'),
+    closeWindow: () => ipcRenderer.invoke('close-window'),
+    quitApp: () => ipcRenderer.invoke('quit-app')
 });
