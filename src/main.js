@@ -180,18 +180,66 @@ ipcMain.handle('download-game', async (event, downloadUrl) => {
     
     let downloadedBytes = 0;
     const totalBytes = parseInt(response.headers['content-length']) || 0;
+    const startTime = Date.now();
+    let lastUpdateTime = startTime;
+    let lastDownloadedBytes = 0;
+    
+    // Função para formatar bytes em MB
+    const formatBytes = (bytes) => {
+      if (bytes === 0) return '0 MB';
+      const mb = bytes / (1024 * 1024);
+      return `${mb.toFixed(1)} MB`;
+    };
+    
+    // Função para formatar tempo
+    const formatTime = (seconds) => {
+      if (seconds < 60) return `${Math.floor(seconds)}s`;
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.floor(seconds % 60);
+      return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    };
     
     response.data.on('data', (chunk) => {
       downloadedBytes += chunk.length;
+      const currentTime = Date.now();
+      
       if (totalBytes > 0) {
         const progress = Math.round((downloadedBytes / totalBytes) * 100);
-        console.log(`Download progresso: ${progress}% (${downloadedBytes}/${totalBytes} bytes)`);
+        
+        // Calcula velocidade de download (MB/s)
+        const timeDiff = (currentTime - lastUpdateTime) / 1000; // em segundos
+        if (timeDiff >= 0.5) { // Atualiza a cada 0.5 segundos
+          const bytesDiff = downloadedBytes - lastDownloadedBytes;
+          const speedMBps = (bytesDiff / (1024 * 1024)) / timeDiff;
+          
+          // Calcula tempo restante
+          const remainingBytes = totalBytes - downloadedBytes;
+          const estimatedTimeRemaining = remainingBytes / (bytesDiff / timeDiff);
+          
+          // Envia progresso para o frontend
+          event.sender.send('download-progress', {
+            progress: progress,
+            downloaded: downloadedBytes,
+            total: totalBytes,
+            speed: speedMBps,
+            timeRemaining: estimatedTimeRemaining,
+            downloadedFormatted: formatBytes(downloadedBytes),
+            totalFormatted: formatBytes(totalBytes),
+            speedFormatted: `${speedMBps.toFixed(1)} MB/s`,
+            timeRemainingFormatted: formatTime(estimatedTimeRemaining)
+          });
+          
+          lastUpdateTime = currentTime;
+          lastDownloadedBytes = downloadedBytes;
+        }
+        
+                console.log(`Download progresso: ${progress}% (${downloadedBytes}/${totalBytes} bytes)`);
       }
     });
 
     response.data.pipe(writer);
 
-        return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       writer.on('finish', async () => {
         console.log('Download concluído, verificando arquivo...');
         

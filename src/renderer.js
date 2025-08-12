@@ -11,8 +11,54 @@ statusText.style.padding = '10px';
 statusText.style.borderRadius = '5px';
 statusText.style.textAlign = 'center';
 
+// Elementos da barra de progresso
+const downloadProgress = document.getElementById('download-progress');
+const downloadStatus = document.getElementById('download-status');
+const downloadPercentage = document.getElementById('download-percentage');
+const progressBar = document.getElementById('progress-bar');
+const downloadSpeed = document.getElementById('download-speed');
+const downloadSize = document.getElementById('download-size');
+const downloadTime = document.getElementById('download-time');
+
 // Adiciona o status ao DOM
 document.body.appendChild(statusText);
+
+// Funções para gerenciar a barra de progresso
+function showDownloadProgress() {
+  downloadProgress.style.display = 'block';
+  downloadStatus.textContent = 'Baixando...';
+  downloadPercentage.textContent = '0%';
+  progressBar.style.width = '0%';
+  downloadSpeed.textContent = '0 MB/s';
+  downloadSize.textContent = '0 MB / 0 MB';
+  downloadTime.textContent = '--:--';
+}
+
+function hideDownloadProgress() {
+  downloadProgress.style.display = 'none';
+}
+
+function updateDownloadProgress(data) {
+  downloadStatus.textContent = 'Baixando...';
+  downloadPercentage.textContent = `${data.progress}%`;
+  progressBar.style.width = `${data.progress}%`;
+  downloadSpeed.textContent = data.speedFormatted;
+  downloadSize.textContent = `${data.downloadedFormatted} / ${data.totalFormatted}`;
+  downloadTime.textContent = data.timeRemainingFormatted;
+}
+
+function showDownloadComplete() {
+  downloadStatus.textContent = 'Download Concluído!';
+  downloadPercentage.textContent = '100%';
+  progressBar.style.width = '100%';
+  progressBar.style.background = 'linear-gradient(45deg, #28a745, #20c997)';
+  
+  // Esconde a barra após 3 segundos
+  setTimeout(() => {
+    hideDownloadProgress();
+    progressBar.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
+  }, 3000);
+}
 
 // Event listeners para os botões da barra de título
 minimizeBtn?.addEventListener('click', () => {
@@ -209,25 +255,31 @@ updateButton?.addEventListener('click', async () => {
         }
       }
       
-      if (asset) {
-        console.log('Asset encontrado:', asset);
-        statusText.textContent = '⬇️ Baixando jogo... (isso pode demorar alguns minutos)';
-        statusText.style.backgroundColor = '#fff3e0';
-        statusText.style.color = '#ef6c00';
-        statusText.style.border = '1px solid #ffcc02';
-        
-        await window.electronAPI.downloadGame(asset.browser_download_url);
-        
-        statusText.textContent = '✅ Jogo baixado com sucesso!';
-        statusText.style.backgroundColor = '#d4edda';
-        statusText.style.color = '#155724';
-        statusText.style.border = '1px solid #c3e6cb';
-        
-        alert('Jogo baixado com sucesso!');
-        
-        // Reverte o status após download
-        await checkGameStatus();
-      } else {
+             if (asset) {
+         console.log('Asset encontrado:', asset);
+         statusText.textContent = '⬇️ Baixando jogo... (isso pode demorar alguns minutos)';
+         statusText.style.backgroundColor = '#fff3e0';
+         statusText.style.color = '#ef6c00';
+         statusText.style.border = '1px solid #ffcc02';
+         
+         // Mostra a barra de progresso
+         showDownloadProgress();
+         
+         await window.electronAPI.downloadGame(asset.browser_download_url);
+         
+         // Mostra download concluído
+         showDownloadComplete();
+         
+         statusText.textContent = '✅ Jogo baixado com sucesso!';
+         statusText.style.backgroundColor = '#d4edda';
+         statusText.style.color = '#155724';
+         statusText.style.border = '1px solid #c3e6cb';
+         
+         alert('Jogo baixado com sucesso!');
+         
+         // Reverte o status após download
+         await checkGameStatus();
+       } else {
         throw new Error('Nenhum arquivo de jogo encontrado para download');
       }
     } else if (originalText.includes('Atualizar')) {
@@ -258,25 +310,31 @@ updateButton?.addEventListener('click', async () => {
         }
       }
       
-      if (asset) {
-        console.log('Asset encontrado:', asset);
-        statusText.textContent = '⬇️ Atualizando jogo... (isso pode demorar alguns minutos)';
-        statusText.style.backgroundColor = '#fff3e0';
-        statusText.style.color = '#ef6c00';
-        statusText.style.border = '1px solid #ffcc02';
-        
-        await window.electronAPI.downloadGame(asset.browser_download_url);
-        
-        statusText.textContent = '✅ Jogo atualizado com sucesso!';
-        statusText.style.backgroundColor = '#d4edda';
-        statusText.style.color = '#155724';
-        statusText.style.border = '1px solid #c3e6cb';
-        
-        alert('Jogo atualizado com sucesso!');
-        
-        // Reverte o status após atualização
-        await checkGameStatus();
-      } else {
+             if (asset) {
+         console.log('Asset encontrado:', asset);
+         statusText.textContent = '⬇️ Atualizando jogo... (isso pode demorar alguns minutos)';
+         statusText.style.backgroundColor = '#fff3e0';
+         statusText.style.color = '#ef6c00';
+         statusText.style.border = '1px solid #ffcc02';
+         
+         // Mostra a barra de progresso
+         showDownloadProgress();
+         
+         await window.electronAPI.downloadGame(asset.browser_download_url);
+         
+         // Mostra download concluído
+         showDownloadComplete();
+         
+         statusText.textContent = '✅ Jogo atualizado com sucesso!';
+         statusText.style.backgroundColor = '#d4edda';
+         statusText.style.color = '#155724';
+         statusText.style.border = '1px solid #c3e6cb';
+         
+         alert('Jogo atualizado com sucesso!');
+         
+         // Reverte o status após atualização
+         await checkGameStatus();
+       } else {
         throw new Error('Nenhum arquivo de jogo encontrado para atualização');
       }
     } else if (originalText.includes('Jogar')) {
@@ -370,6 +428,11 @@ updateButton?.addEventListener('click', async () => {
 //     alert(`Erro ao executar jogo: ${error.message}`);
 //   }
 // });
+
+// Configura o listener de progresso do download
+window.electronAPI.onDownloadProgress((event, data) => {
+  updateDownloadProgress(data);
+});
 
 // Verifica o status automaticamente ao carregar a página
 document.addEventListener('DOMContentLoaded', () => {
