@@ -1,6 +1,6 @@
 {
   "name": "launcher",
-  "version": "1.0.0",
+  "version": "2.0.6",
   "description": "Game Launcher personalizado",
   "main": "src/main.js",
   "scripts": {
@@ -8,9 +8,9 @@
     "build": "copy src\\index.html dist\\index.html",
     "dev": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder --win nsis",
-    "dist-win": "electron-builder --win nsis",
-    "dist-win-portable": "electron-builder --win portable"
+    "dist": "electron-builder --win nsis --publish always",
+    "dist-win": "electron-builder --win nsis --publish always",
+    "dist-win-portable": "electron-builder --win portable --publish always"
   },
   "build": {
     "appId": "com.seujogo.game",
@@ -41,7 +41,8 @@
       {
         "provider": "github",
         "owner": "romulogdonadoni",
-        "repo": "launcher"
+        "repo": "launcher",
+        "releaseType": "release"
       }
     ]
   },
@@ -57,7 +58,8 @@
   "dependencies": {
     "adm-zip": "^0.5.16",
     "axios": "^1.11.0",
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "electron-log": "^5.1.2"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.21",

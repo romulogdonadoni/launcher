@@ -4,12 +4,7 @@ const testConnectionButton = document.getElementById('test-connection');
 const minimizeBtn = document.getElementById('minimize-btn');
 const maximizeBtn = document.getElementById('maximize-btn');
 const closeBtn = document.getElementById('close-btn');
-const statusText = document.createElement('div');
-statusText.id = 'status';
-statusText.style.marginTop = '20px';
-statusText.style.padding = '10px';
-statusText.style.borderRadius = '5px';
-statusText.style.textAlign = 'center';
+const statusText = document.getElementById('status');
 
 // Elementos da barra de progresso
 const downloadProgress = document.getElementById('download-progress');
@@ -20,8 +15,16 @@ const downloadSpeed = document.getElementById('download-speed');
 const downloadSize = document.getElementById('download-size');
 const downloadTime = document.getElementById('download-time');
 
-// Adiciona o status ao DOM
-document.body.appendChild(statusText);
+// Elementos do auto updater
+const autoUpdateStatus = document.getElementById('auto-update-status');
+const autoUpdateButton = document.getElementById('auto-update-button');
+
+// Elemento para exibir a versão do app
+const versionDisplay = document.getElementById('version-display');
+
+// Variáveis para controle do auto updater
+let isAutoUpdateInProgress = false;
+let currentUpdateInfo = null;
 
 // Funções para gerenciar a barra de progresso
 function showDownloadProgress() {
@@ -58,6 +61,188 @@ function showDownloadComplete() {
     hideDownloadProgress();
     progressBar.style.background = 'linear-gradient(45deg, #667eea, #764ba2)';
   }, 3000);
+}
+
+// Funções para gerenciar o auto updater
+async function checkForLauncherUpdates() {
+  if (isAutoUpdateInProgress) {
+    console.log('Verificação de atualização já em andamento');
+    return;
+  }
+
+  try {
+    isAutoUpdateInProgress = true;
+    autoUpdateButton.disabled = true;
+    autoUpdateButton.textContent = '🔍 Verificando...';
+    
+    updateAutoUpdateStatus('Verificando atualizações do launcher...', 'info');
+    
+    const result = await window.electronAPI.checkForUpdates();
+    console.log('Resultado da verificação:', result);
+    
+    if (result.success) {
+      updateAutoUpdateStatus('Verificação iniciada com sucesso', 'success');
+    } else {
+      updateAutoUpdateStatus(`Erro: ${result.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('Erro ao verificar atualizações:', error);
+    updateAutoUpdateStatus(`Erro: ${error.message}`, 'error');
+  } finally {
+    isAutoUpdateInProgress = false;
+    autoUpdateButton.disabled = false;
+    autoUpdateButton.textContent = '🔄 Verificar Atualizações do Launcher';
+  }
+}
+
+function updateAutoUpdateStatus(message, type = 'info') {
+  autoUpdateStatus.textContent = message;
+  
+  switch (type) {
+    case 'success':
+      autoUpdateStatus.style.backgroundColor = '#d4edda';
+      autoUpdateStatus.style.color = '#155724';
+      autoUpdateStatus.style.border = '1px solid #c3e6cb';
+      break;
+    case 'error':
+      autoUpdateStatus.style.backgroundColor = '#f8d7da';
+      autoUpdateStatus.style.color = '#721c24';
+      autoUpdateStatus.style.border = '1px solid #f5c6cb';
+      break;
+    case 'warning':
+      autoUpdateStatus.style.backgroundColor = '#fff3cd';
+      autoUpdateStatus.style.color = '#856404';
+      autoUpdateStatus.style.border = '1px solid #ffeaa7';
+      break;
+    case 'info':
+    default:
+      autoUpdateStatus.style.backgroundColor = '#e3f2fd';
+      autoUpdateStatus.style.color = '#1565c0';
+      autoUpdateStatus.style.border = '1px solid #bbdefb';
+      break;
+  }
+}
+
+// Função para atualizar a exibição da versão
+async function updateVersionDisplay() {
+  try {
+    const updateStatus = await window.electronAPI.getUpdateStatus();
+    const currentVersion = updateStatus.currentVersion || 'Desconhecida';
+    versionDisplay.textContent = `Versão: ${currentVersion}`;
+    versionDisplay.style.backgroundColor = '#e8f5e8';
+    versionDisplay.style.color = '#2e7d32';
+    versionDisplay.style.border = '1px solid #a5d6a7';
+  } catch (error) {
+    console.error('Erro ao obter versão:', error);
+    versionDisplay.textContent = 'Versão: Erro ao carregar';
+    versionDisplay.style.backgroundColor = '#ffebee';
+    versionDisplay.style.color = '#c62828';
+    versionDisplay.style.border = '1px solid #ffcdd2';
+  }
+}
+
+function handleUpdateStatus(data) {
+  console.log('Status da atualização recebido:', data);
+  
+  switch (data.status) {
+    case 'checking':
+      updateAutoUpdateStatus('🔍 Verificando atualizações...', 'info');
+      break;
+      
+    case 'available':
+      currentUpdateInfo = data.info;
+      const newVersion = data.newVersion || 'nova versão';
+      updateAutoUpdateStatus(
+        `🆕 Atualização disponível: ${newVersion}! Baixando automaticamente...`, 
+        'success'
+      );
+      
+      // Atualiza a exibição da versão com a nova versão disponível
+      if (data.newVersion) {
+        versionDisplay.textContent = `Versão: ${data.currentVersion} → ${data.newVersion}`;
+        versionDisplay.style.backgroundColor = '#fff3cd';
+        versionDisplay.style.color = '#856404';
+        versionDisplay.style.border = '1px solid #ffeaa7';
+      }
+      
+      // Mostra botão para instalar quando disponível
+      if (autoUpdateButton) {
+        autoUpdateButton.textContent = '⬇️ Baixando Atualização...';
+        autoUpdateButton.disabled = true;
+      }
+      break;
+      
+    case 'downloading':
+      if (data.progress) {
+        const percent = Math.round(data.progress.percent || 0);
+        updateAutoUpdateStatus(
+          `⬇️ Baixando atualização: ${percent}%`, 
+          'info'
+        );
+      } else {
+        updateAutoUpdateStatus('⬇️ Baixando atualização...', 'info');
+      }
+      break;
+      
+    case 'downloaded':
+      updateAutoUpdateStatus(
+        '✅ Atualização baixada! Clique para instalar ou reinicie o aplicativo.', 
+        'success'
+      );
+      
+      // Atualiza a exibição da versão para mostrar que está pronta para instalar
+      if (currentUpdateInfo && currentUpdateInfo.version) {
+        versionDisplay.textContent = `Versão: ${currentUpdateInfo.version} (Pronta para instalar)`;
+        versionDisplay.style.backgroundColor = '#d4edda';
+        versionDisplay.style.color = '#155724';
+        versionDisplay.style.border = '1px solid #c3e6cb';
+      }
+      
+      // Habilita botão para instalar
+      if (autoUpdateButton) {
+        autoUpdateButton.textContent = '🚀 Instalar Atualização';
+        autoUpdateButton.disabled = false;
+        autoUpdateButton.onclick = installLauncherUpdate;
+      }
+      break;
+      
+    case 'not-available':
+      updateAutoUpdateStatus('✅ Você já tem a versão mais recente do launcher!', 'success');
+      break;
+      
+    case 'error':
+      updateAutoUpdateStatus(`❌ Erro: ${data.error}`, 'error');
+      
+      // Reabilita botão em caso de erro
+      if (autoUpdateButton) {
+        autoUpdateButton.disabled = false;
+        autoUpdateButton.textContent = '🔄 Verificar Atualizações do Launcher';
+        autoUpdateButton.onclick = checkForLauncherUpdates;
+      }
+      break;
+      
+    default:
+      updateAutoUpdateStatus(`Status desconhecido: ${data.status}`, 'warning');
+      break;
+  }
+}
+
+async function installLauncherUpdate() {
+  try {
+    updateAutoUpdateStatus('🚀 Instalando atualização...', 'info');
+    
+    const result = await window.electronAPI.installUpdate();
+    console.log('Resultado da instalação:', result);
+    
+    if (result.success) {
+      updateAutoUpdateStatus('🔄 Reiniciando para aplicar atualização...', 'success');
+    } else {
+      updateAutoUpdateStatus(`Erro na instalação: ${result.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('Erro ao instalar atualização:', error);
+    updateAutoUpdateStatus(`Erro: ${error.message}`, 'error');
+  }
 }
 
 // Event listeners para os botões da barra de título
@@ -175,6 +360,9 @@ function updateUI(status) {
     statusText.style.border = '1px solid #f5c6cb';
   }
 }
+
+// Event listener para o botão de auto updater
+autoUpdateButton?.addEventListener('click', checkForLauncherUpdates);
 
 // Event listener para o botão de teste de conectividade
 testConnectionButton?.addEventListener('click', async () => {
@@ -434,7 +622,40 @@ window.electronAPI.onDownloadProgress((event, data) => {
   updateDownloadProgress(data);
 });
 
+// Configura o listener de status do auto updater
+window.electronAPI.onUpdateStatus((event, data) => {
+  handleUpdateStatus(data);
+});
+
 // Verifica o status automaticamente ao carregar a página
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Verifica o status do jogo
   checkGameStatus();
+  
+  // Atualiza a exibição da versão
+  await updateVersionDisplay();
+  
+  // Verifica o status inicial do auto updater
+  try {
+    const updateStatus = await window.electronAPI.getUpdateStatus();
+    console.log('Status inicial do auto updater:', updateStatus);
+    
+    if (updateStatus.updateInfo) {
+      currentUpdateInfo = updateStatus.updateInfo;
+      updateAutoUpdateStatus(
+        `🆕 Atualização disponível: ${updateStatus.updateInfo.version || 'nova versão'}!`, 
+        'success'
+      );
+      
+      if (autoUpdateButton) {
+        autoUpdateButton.textContent = '🚀 Instalar Atualização';
+        autoUpdateButton.onclick = installLauncherUpdate;
+      }
+    } else {
+      updateAutoUpdateStatus('✅ Launcher atualizado', 'success');
+    }
+  } catch (error) {
+    console.error('Erro ao obter status do auto updater:', error);
+    updateAutoUpdateStatus('❌ Erro ao verificar status', 'error');
+  }
 });

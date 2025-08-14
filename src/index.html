@@ -26,7 +26,7 @@
     <div class="container">
         <h1>🎮 Game Launcher</h1>
         <button id="update">Verificando...</button>
-        <button id="test-connection">Testar Conexão</button>
+        <button id="test-connection" style="margin-left: 10px; padding: 8px 16px; border: none; border-radius: 5px; background: linear-gradient(45deg, #6c757d, #495057); color: white; cursor: pointer; font-size: 12px;">Testar Conexão</button>
         
         <!-- Barra de progresso do download -->
         <div id="download-progress" style="display: none; margin-top: 20px; width: 100%;">
@@ -43,6 +43,18 @@
                 <span id="download-time">--:--</span>
             </div>
         </div>
+
+        <!-- Status do jogo -->
+        <div id="status" style="margin-top: 20px; padding: 10px; border-radius: 5px; text-align: center;"></div>
+
+        <!-- Status do auto updater -->
+        <div id="auto-update-status" style="margin-top: 10px; padding: 8px; border-radius: 5px; font-size: 12px; text-align: center;"></div>
+
+        <!-- Botão do auto updater -->
+        <button id="auto-update-button" style="margin-top: 10px; padding: 8px 16px; border: none; border-radius: 5px; background: linear-gradient(45deg, #17a2b8, #138496); color: white; cursor: pointer; font-size: 12px;">🔄 Verificar Atualizações do Launcher</button>
+
+        <!-- Exibição da versão -->
+        <div id="version-display" style="margin-top: 15px; padding: 6px 12px; border-radius: 4px; font-size: 11px; text-align: center; background-color: #f8f9fa; color: #6c757d; border: 1px solid #dee2e6; font-family: monospace;">Versão: Carregando...</div>
     </div>
 
     <script src="renderer.js"></script>

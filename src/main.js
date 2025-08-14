@@ -5,10 +5,30 @@ const { app, BrowserWindow, ipcMain, Tray, Menu, dialog } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const fs = require('fs');
 const path = require('path');
+const log = require('electron-log');
+
+// Configuração de logging
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
 
 // ATUALIZE ESTAS CONSTANTES COM SEUS VALORES REAIS
 const REPO_OWNER = 'romulogdonadoni'; // Seu repositório real
-const REPO_NAME = 'game';              // Seu repositório real
+const REPO_NAME = 'game';             // Repositório do jogo
+const REPO_NAME_LAUNCHER = 'launcher'; // Repositório do launcher
+
+// Configuração do auto updater
+autoUpdater.autoDownload = true; // Baixa automaticamente
+autoUpdater.autoInstallOnAppQuit = true; // Instala automaticamente ao fechar
+autoUpdater.allowDowngrade = false; // Não permite downgrade
+autoUpdater.allowPrerelease = false; // Não permite versões pré-release
+
+// Configurações adicionais para melhor experiência
+autoUpdater.forceDevUpdateConfig = false; // Não força configurações de desenvolvimento
+autoUpdater.logger = log; // Configura o logger
+
+// Variável para controlar se há uma atualização em andamento
+let isUpdateInProgress = false;
+let updateInfo = null; // Armazena informações da atualização disponível
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -52,6 +72,12 @@ function createWindow() {
       }
     },
     {
+      label: 'Verificar Atualizações',
+      click: () => {
+        checkForUpdates();
+      }
+    },
+    {
       label: 'Sobre',
       click: () => {
         dialog.showMessageBox(win, {
@@ -82,18 +108,190 @@ function createWindow() {
   
   // Salva a referência da bandeja para uso posterior
   app.tray = tray;
+  
+  // Salva referência da janela principal para uso no auto updater
+  app.mainWindow = win;
+}
+
+// Função para verificar atualizações
+function checkForUpdates() {
+  if (isUpdateInProgress) {
+    log.info('Verificação de atualização já em andamento');
+    return;
+  }
+  
+  log.info('Iniciando verificação de atualizações...');
+  isUpdateInProgress = true;
+  
+  // Notifica o frontend sobre o início da verificação
+  if (app.mainWindow) {
+    app.mainWindow.webContents.send('update-status', {
+      status: 'checking',
+      message: 'Verificando atualizações...',
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // Verifica se há uma conexão com a internet antes de prosseguir
+  try {
+    autoUpdater.checkForUpdates();
+  } catch (error) {
+    log.error('Erro ao verificar atualizações:', error);
+    isUpdateInProgress = false;
+    
+    if (app.mainWindow) {
+      app.mainWindow.webContents.send('update-status', {
+        status: 'error',
+        message: 'Erro ao verificar atualizações',
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+}
+
+// Configuração dos eventos do auto updater
+function setupAutoUpdater() {
+  // Evento: Iniciando verificação
+  autoUpdater.on('checking-for-update', () => {
+    log.info('Verificando atualizações...');
+    if (app.mainWindow) {
+      app.mainWindow.webContents.send('update-status', {
+        status: 'checking',
+        message: 'Verificando atualizações...'
+      });
+    }
+  });
+
+  // Evento: Atualização disponível
+  autoUpdater.on('update-available', (info) => {
+    log.info('Atualização disponível:', info);
+    isUpdateInProgress = false;
+    updateInfo = info; // Armazena informações da atualização
+    
+    if (app.mainWindow) {
+      app.mainWindow.webContents.send('update-status', {
+        status: 'available',
+        message: 'Nova atualização disponível!',
+        info: info,
+        timestamp: new Date().toISOString(),
+        currentVersion: app.getVersion(),
+        newVersion: info.version || 'Nova versão'
+      });
+    }
+    
+    // Mostra notificação na bandeja
+    if (app.tray) {
+      app.tray.displayBalloon({
+        title: 'Atualização Disponível',
+        content: `Nova versão ${info.version || 'disponível'} do Game Launcher!`,
+        icon: path.join(__dirname, 'icon.png')
+      });
+    }
+  });
+
+  // Evento: Nenhuma atualização disponível
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('Nenhuma atualização disponível:', info);
+    isUpdateInProgress = false;
+    
+    if (app.mainWindow) {
+      app.mainWindow.webContents.send('update-status', {
+        status: 'not-available',
+        message: 'Você já tem a versão mais recente!',
+        info: info
+      });
+    }
+  });
+
+  // Evento: Download iniciado
+  autoUpdater.on('download-progress', (progressObj) => {
+    const logMessage = `Velocidade: ${progressObj.bytesPerSecond} - Baixado: ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`;
+    log.info(logMessage);
+    
+    if (app.mainWindow) {
+      app.mainWindow.webContents.send('update-status', {
+        status: 'downloading',
+        message: 'Baixando atualização...',
+        progress: progressObj
+      });
+    }
+  });
+
+  // Evento: Download concluído
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('Atualização baixada com sucesso:', info);
+    isUpdateInProgress = false;
+    
+    if (app.mainWindow) {
+      app.mainWindow.webContents.send('update-status', {
+        status: 'downloaded',
+        message: 'Atualização baixada! Reiniciando para aplicar...',
+        info: info,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Mostra diálogo de confirmação
+    dialog.showMessageBox(app.mainWindow, {
+      type: 'info',
+      title: 'Atualização Pronta',
+      message: 'A atualização foi baixada com sucesso!',
+      detail: `Versão ${info.version || 'nova'} está pronta para instalar. O aplicativo será reiniciado para aplicar as mudanças.`,
+      buttons: ['Reiniciar Agora', 'Reiniciar Mais Tarde'],
+      defaultId: 0
+    }).then((result) => {
+      if (result.response === 0) {
+        // Reinicia imediatamente
+        log.info('Reiniciando aplicativo para instalar atualização...');
+        autoUpdater.quitAndInstall();
+      } else {
+        log.info('Usuário escolheu reiniciar mais tarde');
+        // A atualização será instalada automaticamente quando o app for fechado
+        // devido à configuração autoInstallOnAppQuit = true
+      }
+    });
+  });
+
+  // Evento: Erro no auto updater
+  autoUpdater.on('error', (err) => {
+    log.error('Erro no auto updater:', err);
+    isUpdateInProgress = false;
+    
+    if (app.mainWindow) {
+      app.mainWindow.webContents.send('update-status', {
+        status: 'error',
+        message: 'Erro ao verificar atualizações',
+        error: err.message
+      });
+    }
+    
+    // Mostra erro na bandeja
+    if (app.tray) {
+      app.tray.displayBalloon({
+        title: 'Erro na Atualização',
+        content: `Erro ao verificar atualizações: ${err.message}`,
+        icon: path.join(__dirname, 'icon.png')
+      });
+    }
+  });
 }
 
 app.whenReady().then(() => {
   createWindow();
-
+  
+  // Configura o auto updater
+  setupAutoUpdater();
+  
   // Configura o autoUpdater para usar GitHub Releases
   autoUpdater.setFeedURL({
     provider: 'github',
     owner: REPO_OWNER,
-    repo: REPO_NAME
+    repo: REPO_NAME_LAUNCHER
   });
 
+  // Verifica atualizações automaticamente ao iniciar
+  log.info('Verificando atualizações automaticamente...');
   autoUpdater.checkForUpdatesAndNotify();
 });
 
@@ -717,6 +915,68 @@ ipcMain.handle('quit-app', () => {
   app.quit();
 });
 
+// Handlers para o auto updater
+ipcMain.handle('check-for-updates', () => {
+  try {
+    log.info('Verificação de atualizações solicitada pelo frontend');
+    checkForUpdates();
+    return { success: true, message: 'Verificação de atualizações iniciada' };
+  } catch (error) {
+    log.error('Erro ao verificar atualizações:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('download-update', () => {
+  try {
+    if (isUpdateInProgress) {
+      return { success: false, error: 'Atualização já em andamento' };
+    }
+    
+    log.info('Download de atualização solicitado pelo frontend');
+    autoUpdater.downloadUpdate();
+    return { success: true, message: 'Download de atualização iniciado' };
+  } catch (error) {
+    log.error('Erro ao iniciar download:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('install-update', () => {
+  try {
+    log.info('Instalação de atualização solicitada pelo frontend');
+    autoUpdater.quitAndInstall();
+    return { success: true, message: 'Reiniciando para instalar atualização' };
+  } catch (error) {
+    log.error('Erro ao instalar atualização:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-update-status', () => {
+  return {
+    isUpdateInProgress,
+    currentVersion: app.getVersion(),
+    autoDownload: autoUpdater.autoDownload,
+    autoInstallOnAppQuit: autoUpdater.autoInstallOnAppQuit,
+    updateInfo: updateInfo,
+    lastCheck: new Date().toISOString()
+  };
+});
+
+ipcMain.handle('get-update-info', () => {
+  return {
+    currentVersion: app.getVersion(),
+    updateInfo: updateInfo,
+    isUpdateInProgress,
+    autoUpdaterConfig: {
+      autoDownload: autoUpdater.autoDownload,
+      autoInstallOnAppQuit: autoUpdater.autoInstallOnAppQuit,
+      allowDowngrade: autoUpdater.allowDowngrade,
+      allowPrerelease: autoUpdater.allowPrerelease
+    }
+  };
+});
 
 
 // Função para comparar IDs de release (quanto maior o ID, mais recente)
